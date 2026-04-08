@@ -88,6 +88,8 @@ Run the launcher script:
 ${CLAUDE_SKILL_DIR}/scripts/launch-revdiff.sh [base] [against] [--staged] [--only=file1] [--all-files] [--exclude=prefix]
 ```
 
+**IMPORTANT — long-running command**: The launcher blocks until the user finishes reviewing in the TUI overlay, which can exceed the default bash tool timeout on many harnesses. Set the bash timeout parameter to the **maximum your harness allows** (e.g. 1800000 or higher on OpenCode). Do NOT use `run_in_background` for this — background-task handling is unreliable for interactive TUI launchers (processes may be killed unprompted, and polling loops can leave the session idle after the review finishes). If the review outlasts the timeout cap, the fallback in Step 3 handles it.
+
 The script:
 - Detects available terminal (tmux → Zellij → kitty → wezterm/Kaku → cmux → ghostty → iTerm2 → Emacs vterm)
 - Launches revdiff in an overlay
@@ -95,6 +97,21 @@ The script:
 - Prints captured annotations to stdout
 
 ### Step 3: Process Annotations
+
+**Collecting launcher output**: In the normal case the launcher returns synchronously with annotations on stdout — process them as described below. If the bash tool instead reports a timeout (on Claude Code the task keeps running in the background after the 10-minute cap; on other harnesses it may be killed outright), revdiff is almost certainly still open in the overlay. Do NOT retry the launcher. Use the fallback:
+
+1. Tell the user: "The bash tool timed out, but revdiff may still be open. Let me know when you're done reviewing."
+2. Wait for the user to reply. They cannot respond while the overlay has focus, so their reply confirms revdiff has exited.
+3. Read the most recent output file (the launcher writes to `$TMPDIR` when set, falling back to `/tmp`):
+   ```bash
+   output_file="$(ls -t "${TMPDIR:-/tmp}"/revdiff-output-* 2>/dev/null | head -1)"
+   if [ -n "$output_file" ] && [ -f "$output_file" ]; then
+     cat "$output_file"
+   fi
+   ```
+4. If it has content, process as annotations below. If empty or no file, the user quit without annotating.
+
+This fallback is safe because revdiff writes the output file atomically on exit — there is never a partial read.
 
 If the script produces output, the user made annotations. The output format is:
 
