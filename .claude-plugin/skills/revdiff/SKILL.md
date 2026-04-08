@@ -127,9 +127,41 @@ Each annotation block has:
 - `## filename:line (type)` — which file and line, `(+)` = added, `(-)` = removed, `(file-level)` = file note
 - Comment text below — what the user wants changed
 
+### Step 3.5: Classify Annotations
+
+Split annotations into two categories:
+
+**Explanation requests** — annotation text starts with (case-insensitive): `explain`, `remind`, `describe`, `what is`, `what are`, `how does`, `how do`, `clarify`. These are questions the user wants answered, not code changes.
+
+**Code-change directives** — everything else. These are instructions to modify code.
+
+**If explanation requests are found:**
+
+1. Answer each explanation request — read the referenced code, provide a clear answer
+2. If there are also code-change directives in the same batch, list them as pending
+3. Use AskUserQuestion:
+
+```json
+{
+  "question": "Explanations shown above. How to proceed?",
+  "options": [
+    {"label": "Continue review", "description": "Re-launch revdiff to continue reviewing"},
+    {"label": "Address as change request", "description": "Treat explanation annotations as change directives instead"},
+    {"label": "Exit review", "description": "Stop the review loop"}
+  ],
+  "default": "Continue review"
+}
+```
+
+- **Continue review** → go to Step 6 (re-launch revdiff). Any pending code-change directives from the same batch carry over to Step 4 first.
+- **Address as change request** → reclassify explanation annotations as directives, merge with any other directives, proceed to Step 4
+- **Exit review** → go to Step 7
+
+**If no explanation requests** — all annotations are code-change directives, proceed directly to Step 4.
+
 ### Step 4: Plan Changes
 
-Enter plan mode (EnterPlanMode) to analyze annotations:
+Enter plan mode (EnterPlanMode) to analyze code-change annotations:
 - List each annotation with file and line reference
 - Describe the planned change for each
 - Get user approval before modifying code
@@ -140,7 +172,7 @@ After plan approval, fix the actual source code. Each annotation is a directive.
 
 ### Step 6: Loop
 
-After fixing, run the launcher script again with the same ref. The user can:
+After fixing (or after "Continue review" from Step 3.5), run the launcher script again with the same ref. The user can:
 - Add more annotations → go back to Step 3
 - Quit without annotations → review complete (no output)
 
@@ -161,6 +193,20 @@ User: "revdiff HEAD~1"
 → fix applied
 → re-launch revdiff HEAD~1
 → user sees fix, quits without annotations
+→ "review complete"
+```
+
+```
+User: "revdiff HEAD~3"
+→ launch revdiff in tmux popup with HEAD~3 diff
+→ user annotates: "server.go:72 - explain what this mutex protects"
+→ user quits
+→ annotation classified as explanation request (starts with "explain")
+→ Claude reads server.go:72, explains the mutex purpose
+→ AskUserQuestion: "Continue review" / "Address as change request" / "Exit review"
+→ user picks "Continue review"
+→ re-launch revdiff HEAD~3
+→ user quits without annotations
 → "review complete"
 ```
 
