@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.15.2 - 2026-04-09
+
+### New Features
+
+- add screenshot gallery with auto-rotating crossfade to site
+
+### Improvements
+
+- comprehensive code smells cleanup #76 @umputun
+
+### Bug Fixes
+
+- use raw ANSI for cursor and annotation to preserve DiffBg theme background
+- change untracked files status icon from ? to ∅ to avoid conflict with help key
+- set cursor-bg to match diff-bg in all bundled themes
+
 ## v0.15.1 - 2026-04-08
 
 ### Bug Fixes
