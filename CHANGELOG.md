@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.16.1 - 2026-04-10
+
+### Improvements
+
+- add revdiff review tasks to local zed config 215df34
+
+### Bug Fixes
+
+- soften auto-derived word-diff bg shift for better contrast 8ec62e5
+- draw right scroll overflow glyph on DiffBg instead of line bg 282f174
+
 ## v0.16.0 - 2026-04-10
 
 ### New Features
