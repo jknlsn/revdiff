@@ -16,6 +16,10 @@ import (
 // annotKeyFile is the lookup key for file-level annotations in wrappedAnnotationLineCount.
 const annotKeyFile = "file"
 
+// annotCharLimit caps annotation text length. sized for multi-item lists and
+// small pasted data slices, not for full-document content.
+const annotCharLimit = 8000
+
 // hunkKeywordRe matches whole-word "hunk" (case-insensitive).
 // "block" was removed as it triggers false positives in casual usage (e.g., "this code block is fine").
 var hunkKeywordRe = regexp.MustCompile(`(?i)\bhunk\b`)
@@ -26,7 +30,7 @@ func (m *Model) newAnnotationInput(placeholder string, prefixWidth int) (textinp
 	ti := textinput.New()
 	ti.Placeholder = placeholder
 	cmd := ti.Focus()
-	ti.CharLimit = 500
+	ti.CharLimit = annotCharLimit
 	ti.Width = max(10, m.diffContentWidth()-prefixWidth)
 
 	// set DiffBg on all textinput sub-styles so View() output inherits the pane background.

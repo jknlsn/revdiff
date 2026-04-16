@@ -956,6 +956,54 @@ func TestModel_ShiftAStartsFileAnnotation(t *testing.T) {
 	assert.NotNil(t, cmd, "should return textinput blink command")
 }
 
+func TestModel_AnnotationInputCharLimit(t *testing.T) {
+	lines := []diff.DiffLine{
+		{NewNum: 1, Content: "added", ChangeType: diff.ChangeAdd},
+	}
+	longInput := strings.Repeat("x", annotCharLimit)
+	overflowInput := longInput + strings.Repeat("y", 100)
+
+	tests := []struct {
+		name          string
+		fileLevel     bool
+		input         string
+		wantStoredLen int
+	}{
+		{"line: long input preserved", false, longInput, annotCharLimit},
+		{"line: overflow truncated to limit", false, overflowInput, annotCharLimit},
+		{"file: long input preserved", true, longInput, annotCharLimit},
+		{"file: overflow truncated to limit", true, overflowInput, annotCharLimit},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := testModel([]string{"a.go"}, nil)
+			m.tree = testNewFileTree([]string{"a.go"})
+			m.file.name = "a.go"
+			m.file.lines = lines
+			m.nav.diffCursor = 0
+			m.layout.focus = paneDiff
+			m.layout.width = 120
+			m.layout.treeWidth = 30
+
+			if tt.fileLevel {
+				require.NotNil(t, m.startFileAnnotation())
+				require.True(t, m.annot.fileAnnotating)
+			} else {
+				require.NotNil(t, m.startAnnotation())
+				require.True(t, m.annot.annotating)
+			}
+
+			m.annot.input, _ = m.annot.input.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.input)})
+			m.saveAnnotation()
+
+			stored := m.store.Get("a.go")
+			require.Len(t, stored, 1)
+			assert.Len(t, stored[0].Comment, tt.wantStoredLen)
+		})
+	}
+}
+
 func TestModel_AnnotationInputWidthNarrowTerminal(t *testing.T) {
 	// very narrow terminal should not produce negative textinput width
 	lines := []diff.DiffLine{
