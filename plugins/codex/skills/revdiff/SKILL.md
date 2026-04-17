@@ -160,7 +160,11 @@ Each annotation block has:
 
 Split annotations into two categories:
 
-**Explanation requests** — annotation text starts with (case-insensitive): `explain`, `remind`, `describe`, `what is`, `what are`, `how does`, `how do`, `clarify`. These are questions the user wants answered, not code changes.
+**Explanation requests** — annotation matches either rule (case-insensitive):
+- contains two or more consecutive question marks anywhere in the text (`??`, `???`, etc.) — a language-neutral shortcut for "please explain"
+- OR starts with one of: `explain`, `remind`, `describe`, `what is`, `what are`, `how does`, `how do`, `clarify`
+
+These are questions the user wants answered, not code changes.
 
 **Code-change directives** — everything else. These are instructions to modify code.
 
