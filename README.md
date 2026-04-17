@@ -26,8 +26,8 @@ Built for a specific use case: reviewing code changes, plans, and documents with
 - Status line with filename, diff stats, hunk position, line number, and mode indicators
 - Help overlay (`?`) showing all keybindings organized by section
 - Markdown TOC navigation: single-file markdown files in context-only mode show a table-of-contents pane with header navigation and active section tracking
-- All-files mode: browse and annotate all git-tracked files with `--all-files`, filter with `--include` and `--exclude`
-- No-git file review: `--only` files outside a git repo (or not in any diff) are shown as context-only with full annotation support
+- All-files mode: browse and annotate all tracked files with `--all-files` (git `ls-files` or jj `file list`), filter with `--include` and `--exclude`
+- No-VCS file review: `--only` files outside a VCS repo (or not in any diff) are shown as context-only with full annotation support
 - Scratch-buffer review: annotate arbitrary piped or redirected text with `--stdin`, optionally naming it with `--stdin-name`
 - Pi package: launch revdiff from pi, capture annotations, and keep them visible in a widget and right-side panel until you apply or clear them
 - Review history: auto-saves annotations and diffs to `~/.config/revdiff/history/` on quit as a safety net
@@ -134,11 +134,12 @@ Priority: tmux → Zellij → kitty → wezterm/Kaku → cmux → ghostty → iT
 "revdiff for staged changes"      -- staged only
 ```
 
-When no ref is provided, the plugin detects what to review automatically:
+When no ref is provided, the plugin auto-detects the VCS (git, hg, or jj) and inspects the current repo state to pick what to review:
 - On main/master with uncommitted changes — reviews uncommitted changes
 - On main/master with clean tree — reviews the last commit
 - On a feature branch with clean tree — reviews branch diff against main
 - On a feature branch with uncommitted changes — asks whether to review uncommitted only or the full branch diff
+- Outside a VCS repo — falls back to asking the user what to review
 
 The plugin includes built-in reference documentation and can answer questions about revdiff usage, available themes, keybindings, and configuration options. It can also create or modify the local config file (`~/.config/revdiff/config`) on request:
 
@@ -302,7 +303,7 @@ Positional arguments support several forms:
 | `--init-themes` | Write bundled theme files to themes dir and exit | |
 | `--init-all-themes` | Write all gallery themes (bundled + community) to themes dir and exit | |
 | `--install-theme` | Install theme(s) from gallery or local file path and exit (repeatable) | |
-| `-A`, `--all-files` | Browse all git-tracked files, not just diffs (git only) | `false` |
+| `-A`, `--all-files` | Browse all tracked files, not just diffs (git or jj) | `false` |
 | `--stdin` | Review stdin as a scratch buffer (piped or redirected input only) | `false` |
 | `--stdin-name` | Synthetic file name for stdin content; enables extension-based highlighting/TOC | `scratch-buffer` |
 | `-I`, `--include` | Include only files matching prefix, may be repeated, env: `REVDIFF_INCLUDE` (comma-separated) | |
@@ -464,10 +465,10 @@ revdiff --include src --exclude src/vendor
 # exclude paths in normal diff mode
 revdiff main --exclude vendor
 
-# review a file outside a git repo (context-only, no diff markers)
+# review a file outside a VCS repo (context-only, no diff markers)
 revdiff --only=/tmp/plan.md
 
-# review a file that has no git changes (context-only view with annotations)
+# review a file that has no VCS changes (context-only view with annotations)
 revdiff --only=docs/notes.txt
 
 # review arbitrary piped text as a scratch buffer
@@ -479,9 +480,9 @@ some-command | revdiff --stdin --output /tmp/annotations.txt
 
 ### All-Files Mode
 
-Use `--all-files` (or `-A`) to browse all git-tracked files in a project, not just files with changes. This turns revdiff into a general-purpose code annotation tool. All files are shown in context-only mode (no `+`/`-` markers) with full annotation and syntax highlighting support.
+Use `--all-files` (or `-A`) to browse all tracked files in a project, not just files with changes. This turns revdiff into a general-purpose code annotation tool. All files are shown in context-only mode (no `+`/`-` markers) with full annotation and syntax highlighting support.
 
-`--all-files` requires a git repository (uses `git ls-files` for file discovery) and is mutually exclusive with refs, `--staged`, and `--only`.
+`--all-files` requires a git or jj repository (uses `git ls-files` or `jj file list` for file discovery) and is mutually exclusive with refs, `--staged`, and `--only`. Not supported in hg repos.
 
 Combine with `--include` (or `-I`) to narrow to specific paths and `--exclude` (or `-X`) to filter out unwanted paths:
 
@@ -505,12 +506,12 @@ Or via environment variables (comma-separated): `REVDIFF_INCLUDE=src`, `REVDIFF_
 
 ### Context-Only File Review
 
-When `--only` specifies a file that has no git changes (or when no git repo exists at all), revdiff shows the file in context-only mode: all lines are displayed without `+`/`-` gutter markers, with full annotation and syntax highlighting support. This enables reviewing arbitrary files without requiring git context.
+When `--only` specifies a file that has no VCS changes (or when no VCS repo exists at all), revdiff shows the file in context-only mode: all lines are displayed without `+`/`-` gutter markers, with full annotation and syntax highlighting support. This enables reviewing arbitrary files without requiring VCS context.
 
 Two scenarios trigger this mode:
 
-1. **Inside a git repo** - `--only` files not in the diff are read from disk and shown alongside any changed files
-2. **Outside a git repo** - `--only` is required; files are read directly from disk
+1. **Inside a repo (git/hg/jj)** - `--only` files not in the diff are read from disk and shown alongside any changed files
+2. **Outside a VCS repo** - `--only` is required; files are read directly from disk
 
 ### Scratch-Buffer Review
 
@@ -534,7 +535,7 @@ This mode activates when all three conditions are met: single file, markdown ext
 
 ### Beyond Code Review
 
-The `--only` flag enables use cases beyond git diffs. Any text file can be loaded for annotation — no git repo required.
+The `--only` flag enables use cases beyond VCS diffs. Any text file can be loaded for annotation — no VCS repo required.
 
 **Reviewing AI-generated drafts** — When an AI assistant drafts text to be posted publicly (PR comments, issue responses, release notes), write it to a temp file and review in revdiff. Annotate specific lines with changes, the assistant reads annotations and rewrites, re-open to verify. Same annotate-fix-verify loop as code review.
 
@@ -558,7 +559,7 @@ See the [Zed integration guide](https://revdiff.com/docs.html#zed-integration) f
 When you quit with annotations (`q`), revdiff automatically saves a copy of the review session to `~/.config/revdiff/history/<repo-name>/<timestamp>.md`. This is a safety net — if annotations are lost (process crash, agent fails to capture stdout), the history file preserves them.
 
 Each history file contains:
-- Header with path, git refs, and commit hash
+- Header with path, refs, and (git only) a short commit hash
 - Full annotation output (same format as stdout)
 - Raw git diff for annotated files only
 
