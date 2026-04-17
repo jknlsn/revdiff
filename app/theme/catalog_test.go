@@ -283,12 +283,14 @@ func TestValidateHexColor(t *testing.T) {
 
 func TestOptionalColorKeys(t *testing.T) {
 	opt := NewCatalog("").OptionalColorKeys()
-	assert.Len(t, opt, 5)
+	assert.Len(t, opt, 7)
 	assert.True(t, opt["color-cursor-bg"])
 	assert.True(t, opt["color-tree-bg"])
 	assert.True(t, opt["color-diff-bg"])
 	assert.True(t, opt["color-word-add-bg"])
 	assert.True(t, opt["color-word-remove-bg"])
+	assert.True(t, opt["color-status-fg"])
+	assert.True(t, opt["color-status-bg"])
 
 	// verify it returns a copy
 	opt["color-accent"] = true
@@ -417,7 +419,7 @@ func Test_initBundled_createsDirAndFiles(t *testing.T) {
 
 	names, err := NewCatalog(dir).list()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"catppuccin-latte", "catppuccin-mocha", "dracula", "gruvbox", "nord", "revdiff", "solarized-dark"}, names)
+	assert.Equal(t, []string{"basic", "catppuccin-latte", "catppuccin-mocha", "dracula", "gruvbox", "nord", "revdiff", "solarized-dark"}, names)
 
 	// verify files are non-empty
 	for _, name := range names {
@@ -508,7 +510,7 @@ func Test_initNames_notInGallery(t *testing.T) {
 func Test_bundledNames(t *testing.T) {
 	names, err := NewCatalog("").bundledNames()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"catppuccin-latte", "catppuccin-mocha", "dracula", "gruvbox", "nord", "revdiff", "solarized-dark"}, names)
+	assert.Equal(t, []string{"basic", "catppuccin-latte", "catppuccin-mocha", "dracula", "gruvbox", "nord", "revdiff", "solarized-dark"}, names)
 }
 
 func TestBundledThemes_parseCorrectly(t *testing.T) {
@@ -825,12 +827,12 @@ func Test_gallery(t *testing.T) {
 	assert.GreaterOrEqual(t, len(gallery), 5, "gallery should have at least 5 bundled themes")
 
 	// verify all bundled themes are present and marked
-	for _, name := range []string{"catppuccin-latte", "catppuccin-mocha", "dracula", "gruvbox", "nord", "revdiff", "solarized-dark"} {
+	for _, name := range []string{"basic", "catppuccin-latte", "catppuccin-mocha", "dracula", "gruvbox", "nord", "revdiff", "solarized-dark"} {
 		th, ok := gallery[name]
 		require.True(t, ok, "gallery should contain %q", name)
 		assert.True(t, th.Bundled, "%q should be marked bundled", name)
 		assert.NotEmpty(t, th.ChromaStyle)
-		assert.GreaterOrEqual(t, len(th.Colors), 18, "should have at least 18 required color keys")
+		assert.GreaterOrEqual(t, len(th.Colors), 16, "should have at least 16 required color keys")
 	}
 }
 

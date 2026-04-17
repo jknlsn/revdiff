@@ -29,13 +29,16 @@ var colorKeys = []string{
 }
 
 // optionalColorKeys lists color keys that may be omitted from theme files.
-// these correspond to CLI flags with no default value (terminal background is used instead).
+// these correspond to CLI flags with no default value (terminal background is used instead,
+// and StatusFg falls back to MutedFg).
 var optionalColorKeys = map[string]bool{
 	"color-cursor-bg":      true,
 	"color-tree-bg":        true,
 	"color-diff-bg":        true,
 	"color-word-add-bg":    true,
 	"color-word-remove-bg": true,
+	"color-status-fg":      true,
+	"color-status-bg":      true,
 }
 
 // Theme represents a color theme with metadata and color key-value pairs.
