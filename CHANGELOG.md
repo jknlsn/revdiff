@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.21.0 - 2026-04-20
+
+### New Features
+
+- add `R` keybinding to reload diff from VCS #123 @rashpile
+
+### Bug Fixes
+
+- eager commit-log fetch — fixes #122 (stale commit overlay vs current diff) #129 @umputun
+
 ## v0.20.0 - 2026-04-20
 
 ### New Features
