@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.20.0 - 2026-04-20
+
+### New Features
+
+- launcher override chain for Claude plugins #126 @umputun
+- commit-info popup (i hotkey) for git, hg, and jj #119 @umputun
+
+### Bug Fixes
+
+- match --only patterns with ./ prefix and absolute entries #128 @umputun
+- keep cursor on same screen row when paging #125 @umputun
+
 ## v0.19.2 - 2026-04-17
 
 ### Improvements
