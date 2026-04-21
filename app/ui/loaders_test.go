@@ -339,7 +339,7 @@ func TestModel_UntrackedToggle(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return []diff.DiffLine{{Content: "line1", ChangeType: diff.ChangeContext, OldNum: 1, NewNum: 1}}, nil
 			},
 		}
@@ -393,7 +393,7 @@ func TestModel_UntrackedToggle(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil
 			},
 		}
@@ -417,7 +417,7 @@ func TestModel_UntrackedToggle(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil
 			},
 		}
@@ -450,7 +450,7 @@ func TestModel_StagedOnlyFiles(t *testing.T) {
 				}
 				return nil, nil // no unstaged changes
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return []diff.DiffLine{{Content: "content", ChangeType: diff.ChangeAdd, NewNum: 1}}, nil
 			},
 		}
@@ -476,7 +476,7 @@ func TestModel_StagedOnlyFiles(t *testing.T) {
 				}
 				return []diff.FileEntry{{Path: "main.go", Status: diff.FileModified}}, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil
 			},
 		}
@@ -500,7 +500,7 @@ func TestModel_StagedOnlyFiles(t *testing.T) {
 				}
 				return []diff.FileEntry{{Path: "main.go", Status: diff.FileModified}}, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil
 			},
 		}
@@ -524,7 +524,7 @@ func TestModel_StagedOnlyFiles(t *testing.T) {
 				}
 				return nil, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil
 			},
 		}
@@ -550,7 +550,7 @@ func TestModel_HandleFileLoadedUntrackedFallback(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil // empty diff for untracked
 			},
 		}
@@ -583,7 +583,7 @@ func TestModel_HandleFileLoadedUntrackedFallback(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil // empty diff for some reason
 			},
 		}
@@ -612,7 +612,7 @@ func TestModel_HandleFileLoadedStagedOnlyFallback(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				if staged {
 					return cachedLines, nil
 				}
@@ -643,7 +643,7 @@ func TestModel_HandleFileLoadedStagedOnlyFallback(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				return nil, nil // empty diff even with --cached
 			},
 		}
@@ -671,7 +671,7 @@ func TestModel_HandleFileLoadedStagedOnlyFallback(t *testing.T) {
 			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
 				return entries, nil
 			},
-			FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+			FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 				if staged {
 					return []diff.DiffLine{{NewNum: 1, Content: "staged", ChangeType: diff.ChangeContext}}, nil
 				}
@@ -693,6 +693,43 @@ func TestModel_HandleFileLoadedStagedOnlyFallback(t *testing.T) {
 		m = result.(Model)
 
 		assert.Nil(t, m.file.lines, "FileModified should not trigger staged retry even with empty diff")
+	})
+
+	t.Run("staged retry propagates current compact context", func(t *testing.T) {
+		entries := []diff.FileEntry{{Path: "newfile.go", Status: diff.FileAdded}}
+		cachedLines := []diff.DiffLine{{NewNum: 1, Content: "package main", ChangeType: diff.ChangeContext}}
+		var stagedCtx int
+		renderer := &mocks.RendererMock{
+			ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) {
+				return entries, nil
+			},
+			FileDiffFunc: func(ref, file string, staged bool, ctx int) ([]diff.DiffLine, error) {
+				if staged {
+					stagedCtx = ctx
+					return cachedLines, nil
+				}
+				return nil, nil
+			},
+		}
+		store := annotation.NewStore()
+		m := testNewModel(t, renderer, store, noopHighlighter(), ModelConfig{TreeWidthRatio: 3, WorkDir: "testdata"})
+		m.layout.width = 120
+		m.layout.height = 40
+		m.ready = true
+		m.compact.applicable = true
+		m.modes.compact = true
+		m.modes.compactContext = 5
+
+		cmd := m.Init()
+		msg := cmd()
+		result, cmd := m.Update(msg)
+		m = result.(Model)
+		msg2 := cmd()
+		result, _ = m.Update(msg2)
+		m = result.(Model)
+
+		assert.Equal(t, 5, stagedCtx, "staged retry must pass current compact context, not 0")
+		assert.Equal(t, cachedLines, m.file.lines)
 	})
 }
 
@@ -1109,7 +1146,7 @@ func TestModel_TriggerReload_BumpsSeqAndCallsLoadFiles(t *testing.T) {
 			callCount++
 			return []diff.FileEntry{{Path: "main.go"}}, nil
 		},
-		FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) {
+		FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) {
 			return nil, nil
 		},
 	}
@@ -1277,4 +1314,103 @@ func TestHandleFileLoaded_SingleColLineNum_RealDiff(t *testing.T) {
 	model := result.(Model)
 
 	assert.False(t, model.file.singleColLineNum, "file with add/remove lines should set singleColLineNum to false")
+}
+
+func TestModel_CurrentContextLines(t *testing.T) {
+	tests := []struct {
+		name       string
+		compact    bool
+		ctx        int
+		applicable bool
+		want       int
+	}{
+		{name: "compact off, applicable", compact: false, ctx: 5, applicable: true, want: 0},
+		{name: "compact off, not applicable", compact: false, ctx: 5, applicable: false, want: 0},
+		{name: "compact on, applicable", compact: true, ctx: 5, applicable: true, want: 5},
+		{name: "compact on, not applicable", compact: true, ctx: 5, applicable: false, want: 0},
+		{name: "compact on, custom ctx", compact: true, ctx: 10, applicable: true, want: 10},
+		{name: "compact on, zero ctx", compact: true, ctx: 0, applicable: true, want: 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := testModel([]string{"a.go"}, nil)
+			m.modes.compact = tc.compact
+			m.modes.compactContext = tc.ctx
+			m.compact.applicable = tc.applicable
+			assert.Equal(t, tc.want, m.currentContextLines())
+		})
+	}
+}
+
+func TestModel_LoadFileDiffPassesContextLines(t *testing.T) {
+	var captured int
+	renderer := &mocks.RendererMock{
+		ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) { return nil, nil },
+		FileDiffFunc: func(ref, file string, staged bool, contextLines int) ([]diff.DiffLine, error) {
+			captured = contextLines
+			return nil, nil
+		},
+	}
+	m := testModel([]string{"a.go"}, nil)
+	m.diffRenderer = renderer
+	m.modes.compact = true
+	m.modes.compactContext = 7
+	m.compact.applicable = true
+
+	cmd := m.loadFileDiff("a.go")
+	require.NotNil(t, cmd)
+	cmd() // executes and records contextLines
+	assert.Equal(t, 7, captured, "compact mode should pass compactContext to FileDiff")
+}
+
+func TestModel_LoadFileDiffPassesZeroWhenNotApplicable(t *testing.T) {
+	var captured = -1
+	renderer := &mocks.RendererMock{
+		ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) { return nil, nil },
+		FileDiffFunc: func(ref, file string, staged bool, contextLines int) ([]diff.DiffLine, error) {
+			captured = contextLines
+			return nil, nil
+		},
+	}
+	m := testModel([]string{"a.go"}, nil)
+	m.diffRenderer = renderer
+	m.modes.compact = true
+	m.modes.compactContext = 5
+	m.compact.applicable = false
+
+	cmd := m.loadFileDiff("a.go")
+	require.NotNil(t, cmd)
+	cmd()
+	assert.Equal(t, 0, captured, "non-applicable compact mode must still pass 0 (full file)")
+}
+
+func TestModel_ReloadCurrentFileBumpsLoadSeqAndFetches(t *testing.T) {
+	var calls int
+	renderer := &mocks.RendererMock{
+		ChangedFilesFunc: func(ref string, staged bool) ([]diff.FileEntry, error) { return nil, nil },
+		FileDiffFunc: func(ref, file string, staged bool, contextLines int) ([]diff.DiffLine, error) {
+			calls++
+			return nil, nil
+		},
+	}
+	m := testModel([]string{"a.go"}, nil)
+	m.diffRenderer = renderer
+	m.file.name = "a.go"
+	beforeSeq := m.file.loadSeq
+
+	cmd := m.reloadCurrentFile()
+	require.NotNil(t, cmd)
+	assert.Greater(t, m.file.loadSeq, beforeSeq, "reloadCurrentFile must bump file.loadSeq to invalidate prior in-flight loads")
+	cmd()
+	assert.Equal(t, 1, calls, "reloadCurrentFile command must invoke FileDiff once")
+}
+
+func TestModel_ReloadCurrentFileNoOpWhenEmpty(t *testing.T) {
+	m := testModel([]string{"a.go"}, nil)
+	m.file.name = ""
+	beforeSeq := m.file.loadSeq
+
+	cmd := m.reloadCurrentFile()
+	assert.Nil(t, cmd, "reloadCurrentFile must be a no-op when no file is loaded")
+	assert.Equal(t, beforeSeq, m.file.loadSeq, "no load implies no seq bump")
 }

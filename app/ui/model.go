@@ -14,7 +14,7 @@ package ui
 // creating an import cycle (ui -> mocks -> ui). Tests use manual fakes instead.
 
 import (
-	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -35,10 +35,13 @@ import (
 	"github.com/umputun/revdiff/app/ui/worddiff"
 )
 
-// Renderer provides methods to extract changed files and build full-file diff views.
+// Renderer provides methods to extract changed files and build diff views.
+// contextLines controls surrounding context on FileDiff: 0 or >= 1000000 requests
+// full-file context (the revdiff default); positive values < 1000000 request that
+// many lines on each side of a hunk. Context-only sources ignore this parameter.
 type Renderer interface {
 	ChangedFiles(ref string, staged bool) ([]diff.FileEntry, error)
-	FileDiff(ref, file string, staged bool) ([]diff.DiffLine, error)
+	FileDiff(ref, file string, staged bool, contextLines int) ([]diff.DiffLine, error)
 }
 
 // SyntaxHighlighter provides syntax highlighting for diff lines.
@@ -261,12 +264,14 @@ type layoutState struct {
 // modeState holds user-togglable view-mode flags.
 // these are display modes that the user can switch at runtime via keybindings.
 type modeState struct {
-	wrap          bool           // true when line wrapping is enabled
-	collapsed     collapsedState // collapsed diff view state
-	lineNumbers   bool           // true when line numbers are shown in gutter
-	wordDiff      bool           // true when intra-line word-diff highlighting is enabled
-	showBlame     bool           // true when blame gutter is shown
-	showUntracked bool           // true when untracked files are shown in tree
+	wrap           bool           // true when line wrapping is enabled
+	collapsed      collapsedState // collapsed diff view state
+	lineNumbers    bool           // true when line numbers are shown in gutter
+	wordDiff       bool           // true when intra-line word-diff highlighting is enabled
+	showBlame      bool           // true when blame gutter is shown
+	showUntracked  bool           // true when untracked files are shown in tree
+	compact        bool           // true when diffs are fetched with small context around changes
+	compactContext int            // number of context lines around changes when compact is enabled
 }
 
 // navigationState holds cursor and navigation-adjacent state.
@@ -318,6 +323,20 @@ type reloadState struct {
 	applicable bool   // false when reload is unavailable (e.g. --stdin)
 }
 
+// compactState holds runtime state for the compact diff mode feature.
+// applicable mirrors ModelConfig.CompactApplicable, copied at construction so
+// the toggle handler can short-circuit without consulting CLI flags: false
+// when the underlying source is context-only (stdin, all-files, standalone
+// FileReader) and shrinking context makes no sense. hint is a transient
+// status-bar message set when the toggle fires in an unavailable mode, so
+// the key press has visible feedback; cleared on the next key press, matching
+// the commits.hint / reload.hint lifecycle. The user-controlled toggle state
+// (on/off, context size) lives on modeState alongside the other view toggles.
+type compactState struct {
+	applicable bool   // true when current mode supports compact diffs
+	hint       string // transient status-bar message; cleared on next key press
+}
+
 // annotationState holds annotation input lifecycle state.
 type annotationState struct {
 	annotating         bool            // true when annotation text input is active
@@ -361,6 +380,7 @@ type Model struct {
 	annot       annotationState   // annotation input lifecycle state
 	commits     commitsState      // eagerly loaded commit log for the commit-info overlay
 	reload      reloadState       // pending-confirmation state and applicability for R reload
+	compact     compactState      // applicability + transient hint for compact diff mode
 
 	ready        bool   // true after first WindowSizeMsg
 	filesLoaded  bool   // true after the first filesLoadedMsg is handled (keeps the loading view pinned until real data arrives)
@@ -490,6 +510,20 @@ type ModelConfig struct {
 	// reload is impossible). Computed at composition root in main.go and copied
 	// into Model state. Follows the same pattern as CommitsApplicable.
 	ReloadApplicable bool
+	// Compact is the initial value for the compact diff mode toggle. When true
+	// the UI starts with small-context diffs (CompactContext lines around each
+	// change) instead of the full-file default. Runtime-toggleable via C.
+	Compact bool
+	// CompactContext is the number of context lines requested from the VCS
+	// when compact mode is active. Zero or negative values (and values at or
+	// above the full-file sentinel) are treated as full-file context.
+	CompactContext int
+	// CompactApplicable is the composition-root verdict on whether the current
+	// invocation can shrink the diff. false in --stdin and --all-files modes
+	// and when the underlying source is a context-only reader (no changes to
+	// contextualize). Computed once in main.go and copied into Model state.
+	// Follows the same pattern as CommitsApplicable.
+	CompactApplicable bool
 }
 
 // NewModel creates a new Model from the given configuration. All dependencies
@@ -508,39 +542,36 @@ func isNilValue(v any) bool {
 	return false
 }
 
+// validateRequired checks every non-optional ModelConfig field is populated.
+// returns a single "<field> is required" error for the first missing dependency.
+func (cfg ModelConfig) validateRequired() error {
+	required := []struct {
+		name string
+		ok   bool
+	}{
+		{"Renderer", cfg.Renderer != nil},
+		{"Store", cfg.Store != nil},
+		{"Highlighter", cfg.Highlighter != nil},
+		{"StyleResolver", cfg.StyleResolver != nil},
+		{"StyleRenderer", cfg.StyleRenderer != nil},
+		{"SGR", cfg.SGR != nil},
+		{"WordDiffer", cfg.WordDiffer != nil},
+		{"Overlay", cfg.Overlay != nil},
+		{"NewFileTree", cfg.NewFileTree != nil},
+		{"ParseTOC", cfg.ParseTOC != nil},
+		{"Themes", cfg.Themes != nil},
+	}
+	for _, r := range required {
+		if !r.ok {
+			return fmt.Errorf("ui.NewModel: cfg.%s is required", r.name)
+		}
+	}
+	return nil
+}
+
 func NewModel(cfg ModelConfig) (Model, error) {
-	if cfg.Renderer == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.Renderer is required")
-	}
-	if cfg.Store == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.Store is required")
-	}
-	if cfg.Highlighter == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.Highlighter is required")
-	}
-	if cfg.StyleResolver == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.StyleResolver is required")
-	}
-	if cfg.StyleRenderer == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.StyleRenderer is required")
-	}
-	if cfg.SGR == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.SGR is required")
-	}
-	if cfg.WordDiffer == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.WordDiffer is required")
-	}
-	if cfg.Overlay == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.Overlay is required")
-	}
-	if cfg.NewFileTree == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.NewFileTree is required")
-	}
-	if cfg.ParseTOC == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.ParseTOC is required")
-	}
-	if cfg.Themes == nil {
-		return Model{}, errors.New("ui.NewModel: cfg.Themes is required")
+	if err := cfg.validateRequired(); err != nil {
+		return Model{}, err
 	}
 	if cfg.TreeWidthRatio < 1 || cfg.TreeWidthRatio > 10 {
 		cfg.TreeWidthRatio = 2
@@ -589,18 +620,21 @@ func NewModel(cfg ModelConfig) (Model, error) {
 			focus: paneTree,
 		},
 		modes: modeState{
-			wrap:          cfg.Wrap,
-			lineNumbers:   cfg.LineNumbers,
-			collapsed:     collapsedState{enabled: cfg.Collapsed},
-			wordDiff:      cfg.WordDiff,
-			showBlame:     cfg.ShowBlame && cfg.Blamer != nil,
-			showUntracked: false,
+			wrap:           cfg.Wrap,
+			lineNumbers:    cfg.LineNumbers,
+			collapsed:      collapsedState{enabled: cfg.Collapsed},
+			wordDiff:       cfg.WordDiff,
+			showBlame:      cfg.ShowBlame && cfg.Blamer != nil,
+			showUntracked:  false,
+			compact:        cfg.Compact && cfg.CompactApplicable,
+			compactContext: cfg.CompactContext,
 		},
 		commits: commitsState{
 			source:     cls,
 			applicable: cfg.CommitsApplicable && cls != nil,
 		},
 		reload:          reloadState{applicable: cfg.ReloadApplicable},
+		compact:         compactState{applicable: cfg.CompactApplicable},
 		loadUntracked:   cfg.LoadUntracked,
 		activeThemeName: cfg.ActiveThemeName,
 	}, nil
@@ -669,6 +703,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// this point dismisses the last hint before the new action runs.
 	m.commits.hint = ""
 	m.reload.hint = ""
+	m.compact.hint = ""
 
 	// pending-reload intercept: y confirms, any other key cancels
 	if m.reload.pending {
@@ -707,8 +742,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFileAnnotateKey()
 	case keymap.ActionMarkReviewed:
 		return m.handleMarkReviewed()
-	case keymap.ActionToggleCollapsed, keymap.ActionToggleWrap, keymap.ActionToggleTree, keymap.ActionToggleLineNums,
-		keymap.ActionToggleBlame, keymap.ActionToggleWordDiff, keymap.ActionToggleUntracked:
+	case keymap.ActionToggleCollapsed, keymap.ActionToggleCompact, keymap.ActionToggleWrap, keymap.ActionToggleTree,
+		keymap.ActionToggleLineNums, keymap.ActionToggleBlame, keymap.ActionToggleWordDiff, keymap.ActionToggleUntracked:
 		return m.handleViewToggle(action)
 	case keymap.ActionNextHunk, keymap.ActionPrevHunk:
 		return m.handleHunkNav(action == keymap.ActionNextHunk)
@@ -963,6 +998,21 @@ func (m *Model) toggleUntracked() tea.Cmd {
 	return m.loadFiles()
 }
 
+// toggleCompactMode switches between compact (small-context) and full-file
+// diff mode and re-fetches the currently displayed file so the new context
+// size takes effect. Other files re-fetch naturally on next navigation. When
+// the feature is not applicable in the current mode (e.g. --stdin, --all-files,
+// standalone FileReader), sets a transient status-bar hint and returns nil —
+// mode stays unchanged and no re-fetch is issued.
+func (m *Model) toggleCompactMode() tea.Cmd {
+	if !m.compact.applicable {
+		m.compact.hint = "compact not applicable in this mode"
+		return nil
+	}
+	m.modes.compact = !m.modes.compact
+	return m.reloadCurrentFile()
+}
+
 // handleViewToggle dispatches view mode toggle actions.
 func (m Model) handleViewToggle(action keymap.Action) (tea.Model, tea.Cmd) {
 	switch action {
@@ -981,6 +1031,9 @@ func (m Model) handleViewToggle(action keymap.Action) (tea.Model, tea.Cmd) {
 		m.toggleWordDiff()
 	case keymap.ActionToggleUntracked:
 		cmd := m.toggleUntracked()
+		return m, cmd
+	case keymap.ActionToggleCompact:
+		cmd := m.toggleCompactMode()
 		return m, cmd
 	default:
 		return m, nil

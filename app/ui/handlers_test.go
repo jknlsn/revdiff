@@ -180,7 +180,7 @@ func TestModel_QuitNoAnnotationsEmptyOutput(t *testing.T) {
 func TestModel_NoConfirmDiscardWired(t *testing.T) {
 	renderer := &mocks.RendererMock{
 		ChangedFilesFunc: func(string, bool) ([]diff.FileEntry, error) { return nil, nil },
-		FileDiffFunc:     func(string, string, bool) ([]diff.DiffLine, error) { return nil, nil },
+		FileDiffFunc:     func(string, string, bool, int) ([]diff.DiffLine, error) { return nil, nil },
 	}
 	store := annotation.NewStore()
 	m := testNewModel(t, renderer, store, noopHighlighter(), ModelConfig{NoConfirmDiscard: true, TreeWidthRatio: 3})
@@ -504,7 +504,7 @@ func TestModel_ActionReload_NoAnnotations_DirectReload(t *testing.T) {
 			callCount++
 			return []diff.FileEntry{{Path: "a.go"}}, nil
 		},
-		FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) { return nil, nil },
+		FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) { return nil, nil },
 	}
 	m := testNewModel(t, renderer, annotation.NewStore(), noopHighlighter(),
 		ModelConfig{ReloadApplicable: true})
@@ -541,7 +541,7 @@ func TestModel_ActionReload_YConfirms(t *testing.T) {
 			callCount++
 			return []diff.FileEntry{{Path: "a.go"}}, nil
 		},
-		FileDiffFunc: func(ref, file string, staged bool) ([]diff.DiffLine, error) { return nil, nil },
+		FileDiffFunc: func(ref, file string, staged bool, _ int) ([]diff.DiffLine, error) { return nil, nil },
 	}
 	m := testNewModel(t, renderer, store, noopHighlighter(),
 		ModelConfig{ReloadApplicable: true})
@@ -605,4 +605,169 @@ func TestModel_HandleFilterToggle_TurnsOffWhenNoAnnotations(t *testing.T) {
 	model = result.(Model)
 	assert.False(t, model.tree.FilterActive(),
 		"filter must toggle off even when no annotations remain — guards the || m.tree.FilterActive() branch")
+}
+
+func TestModel_ToggleCompactMode_FlipsModeAndRefetches(t *testing.T) {
+	var calls int
+	renderer := &mocks.RendererMock{
+		ChangedFilesFunc: func(string, bool) ([]diff.FileEntry, error) { return nil, nil },
+		FileDiffFunc: func(string, string, bool, int) ([]diff.DiffLine, error) {
+			calls++
+			return nil, nil
+		},
+	}
+	m := testModel([]string{"a.go"}, nil)
+	m.diffRenderer = renderer
+	m.compact.applicable = true
+	m.modes.compactContext = 5
+	m.file.name = "a.go"
+
+	// pressing C flips compact on and issues a re-fetch of the current file
+	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	model := result.(Model)
+	assert.True(t, model.modes.compact, "C should flip compact mode on when applicable")
+	require.NotNil(t, cmd, "C should issue a re-fetch command for the current file")
+	cmd()
+	assert.Equal(t, 1, calls, "toggle must trigger exactly one FileDiff call for the current file")
+	assert.Empty(t, model.compact.hint, "applicable path must not set a hint")
+
+	// pressing C again flips compact off and re-fetches
+	result, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	model = result.(Model)
+	assert.False(t, model.modes.compact, "C should flip compact mode off on second press")
+	require.NotNil(t, cmd, "second press must also issue a re-fetch")
+	cmd()
+	assert.Equal(t, 2, calls)
+}
+
+func TestModel_ToggleCompactMode_NoOpWhenNotApplicable(t *testing.T) {
+	var calls int
+	renderer := &mocks.RendererMock{
+		ChangedFilesFunc: func(string, bool) ([]diff.FileEntry, error) { return nil, nil },
+		FileDiffFunc: func(string, string, bool, int) ([]diff.DiffLine, error) {
+			calls++
+			return nil, nil
+		},
+	}
+	m := testModel([]string{"a.go"}, nil)
+	m.diffRenderer = renderer
+	m.compact.applicable = false
+	m.file.name = "a.go"
+	beforeSeq := m.file.loadSeq
+
+	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	model := result.(Model)
+	assert.False(t, model.modes.compact, "non-applicable toggle must leave mode unchanged")
+	assert.Nil(t, cmd, "no-op path must not issue a command")
+	assert.Equal(t, beforeSeq, model.file.loadSeq, "no-op path must not bump loadSeq")
+	assert.Equal(t, 0, calls, "no-op path must not invoke FileDiff")
+	assert.Equal(t, "compact not applicable in this mode", model.compact.hint, "hint must surface the reason")
+}
+
+func TestModel_CompactHint_ShownInStatusBar(t *testing.T) {
+	m := testModel([]string{"a.go"}, nil)
+	m.compact.hint = "test compact hint"
+	assert.Equal(t, "test compact hint", m.statusBarText())
+}
+
+func TestModel_CompactHint_ClearsOnNextKey(t *testing.T) {
+	m := testModel([]string{"a.go"}, nil)
+	m.compact.hint = "some hint"
+
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	model := result.(Model)
+	assert.Empty(t, model.compact.hint, "any key press must clear the compact hint")
+}
+
+func TestModel_TransientHint_Priority(t *testing.T) {
+	t.Run("commits wins over reload and compact", func(t *testing.T) {
+		m := testModel([]string{"a.go"}, nil)
+		m.commits.hint = "commits msg"
+		m.reload.hint = "reload msg"
+		m.compact.hint = "compact msg"
+		assert.Equal(t, "commits msg", m.transientHint())
+	})
+
+	t.Run("reload wins over compact when commits empty", func(t *testing.T) {
+		m := testModel([]string{"a.go"}, nil)
+		m.reload.hint = "reload msg"
+		m.compact.hint = "compact msg"
+		assert.Equal(t, "reload msg", m.transientHint())
+	})
+
+	t.Run("compact when only one set", func(t *testing.T) {
+		m := testModel([]string{"a.go"}, nil)
+		m.compact.hint = "compact msg"
+		assert.Equal(t, "compact msg", m.transientHint())
+	})
+
+	t.Run("empty when none set", func(t *testing.T) {
+		m := testModel([]string{"a.go"}, nil)
+		assert.Empty(t, m.transientHint())
+	})
+}
+
+func TestModel_ToggleCompactMode_DoesNotReloadFilesOrCommits(t *testing.T) {
+	var fileDiffCalls, changedFilesCalls int
+	renderer := &mocks.RendererMock{
+		ChangedFilesFunc: func(string, bool) ([]diff.FileEntry, error) {
+			changedFilesCalls++
+			return nil, nil
+		},
+		FileDiffFunc: func(string, string, bool, int) ([]diff.DiffLine, error) {
+			fileDiffCalls++
+			return nil, nil
+		},
+	}
+	m := testModel([]string{"a.go"}, nil)
+	m.diffRenderer = renderer
+	m.compact.applicable = true
+	m.modes.compactContext = 5
+	m.file.name = "a.go"
+	beforeFilesSeq := m.filesLoadSeq
+	beforeCommitsSeq := m.commits.loadSeq
+
+	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	model := result.(Model)
+	require.NotNil(t, cmd)
+	cmd()
+
+	assert.Equal(t, beforeFilesSeq, model.filesLoadSeq, "toggle must not bump filesLoadSeq (no file-list reload)")
+	assert.Equal(t, beforeCommitsSeq, model.commits.loadSeq, "toggle must not bump commits.loadSeq (no commit reload)")
+	assert.Equal(t, 0, changedFilesCalls, "toggle must not call ChangedFiles")
+	assert.Equal(t, 1, fileDiffCalls, "toggle must trigger exactly one FileDiff call (current file only)")
+}
+
+func TestModel_ToggleCompactMode_CursorResetsAfterReload(t *testing.T) {
+	// simulates the full toggle flow: press C, then process the fileLoadedMsg
+	// from the triggered re-fetch. verifies skipInitialDividers ran and the
+	// cursor landed on the first non-divider visible line.
+	compactDiff := []diff.DiffLine{
+		{ChangeType: diff.ChangeDivider},
+		{NewNum: 40, Content: "context before", ChangeType: diff.ChangeContext},
+		{NewNum: 41, Content: "added line", ChangeType: diff.ChangeAdd},
+		{NewNum: 42, Content: "context after", ChangeType: diff.ChangeContext},
+	}
+	renderer := &mocks.RendererMock{
+		ChangedFilesFunc: func(string, bool) ([]diff.FileEntry, error) { return nil, nil },
+		FileDiffFunc: func(string, string, bool, int) ([]diff.DiffLine, error) {
+			return compactDiff, nil
+		},
+	}
+	m := testModel([]string{"a.go"}, nil)
+	m.diffRenderer = renderer
+	m.compact.applicable = true
+	m.modes.compactContext = 5
+	m.file.name = "a.go"
+	m.nav.diffCursor = 999 // pretend cursor was somewhere deep in a full-file view
+
+	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	model := result.(Model)
+	require.NotNil(t, cmd)
+	msg := cmd()
+	result, _ = model.Update(msg)
+	model = result.(Model)
+
+	// after skipInitialDividers, cursor should skip index 0 (divider) and land on 1
+	assert.Equal(t, 1, model.nav.diffCursor, "cursor must reset to first non-divider line after compact re-fetch")
 }

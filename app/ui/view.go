@@ -97,6 +97,21 @@ func (m Model) renderTwoPaneLayout(leftContent, diffContent string, ph int) stri
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, diffPane)
 }
 
+// transientHint returns the first non-empty transient status-bar hint. hints
+// are cleared on the next key press (see handleKey). priority matches the
+// display order: commits > reload > compact. returns "" when no hint is set.
+func (m Model) transientHint() string {
+	switch {
+	case m.commits.hint != "":
+		return m.commits.hint
+	case m.reload.hint != "":
+		return m.reload.hint
+	case m.compact.hint != "":
+		return m.compact.hint
+	}
+	return ""
+}
+
 // statusBarText returns context-sensitive status line content.
 // shows search input (when typing), or filename, diff stats, hunk position,
 // search match position, mode indicators, and right-aligned annotation count + help hint.
@@ -113,12 +128,8 @@ func (m Model) statusBarText() string {
 		return "[enter] save  [esc] cancel"
 	}
 
-	if m.commits.hint != "" {
-		return m.commits.hint
-	}
-
-	if m.reload.hint != "" {
-		return m.reload.hint
+	if hint := m.transientHint(); hint != "" {
+		return hint
 	}
 
 	// build left-side segments
@@ -334,6 +345,7 @@ func (m Model) statusModeIcons() string {
 	}
 	indicators := []indicator{
 		{"▼", m.modes.collapsed.enabled},
+		{"⊂", m.modes.compact},
 		{"◉", m.tree.FilterActive()},
 		{"↩", m.modes.wrap},
 		{"≋", len(m.search.matches) > 0},
@@ -348,7 +360,7 @@ func (m Model) statusModeIcons() string {
 	mutedSeq := string(m.resolver.Color(style.ColorKeyMutedFg))
 	activeSeq := string(m.resolver.Color(style.ColorKeyStatusFg))
 
-	var icons []string
+	icons := make([]string, 0, len(indicators))
 	for _, ind := range indicators {
 		if ind.active {
 			icons = append(icons, activeSeq+ind.icon)

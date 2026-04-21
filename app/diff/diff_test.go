@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -274,7 +275,7 @@ func TestGit_FileDiff(t *testing.T) {
 
 	writeFile(t, dir, "main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n")
 
-	lines, err := g.FileDiff("", "main.go", false)
+	lines, err := g.FileDiff("", "main.go", false, 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, lines, "expected non-empty diff lines")
 
@@ -295,7 +296,7 @@ func TestGit_FileDiff(t *testing.T) {
 
 func TestGit_FileDiff_Error(t *testing.T) {
 	g := NewGit("/nonexistent/repo")
-	_, err := g.FileDiff("", "main.go", false)
+	_, err := g.FileDiff("", "main.go", false, 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get file diff")
 }
@@ -326,7 +327,7 @@ func TestGit_FileDiff_NoChanges(t *testing.T) {
 	gitCmd(t, dir, "commit", "-m", "initial")
 
 	// no modifications, diff should be empty
-	lines, err := g.FileDiff("", "x.go", false)
+	lines, err := g.FileDiff("", "x.go", false, 0)
 	require.NoError(t, err)
 	assert.Empty(t, lines)
 }
@@ -353,7 +354,7 @@ func TestGit_FileDiff_BinaryFile(t *testing.T) {
 	err = os.WriteFile(filepath.Join(dir, "image.png"), binData2, 0o600)
 	require.NoError(t, err)
 
-	lines, err := g.FileDiff("", "image.png", false)
+	lines, err := g.FileDiff("", "image.png", false, 0)
 	require.NoError(t, err)
 	require.Len(t, lines, 1)
 	assert.Equal(t, ChangeContext, lines[0].ChangeType)
@@ -382,7 +383,7 @@ func TestGit_FileDiff_NewBinaryFile(t *testing.T) {
 	require.NoError(t, err)
 	gitCmd(t, dir, "add", "new.bin")
 
-	lines, err := g.FileDiff("", "new.bin", true)
+	lines, err := g.FileDiff("", "new.bin", true, 0)
 	require.NoError(t, err)
 	require.Len(t, lines, 1)
 	assert.Contains(t, lines[0].Content, "new binary file")
@@ -405,7 +406,7 @@ func TestGit_FileDiff_ModifiedEmptyBinaryFile(t *testing.T) {
 	err = os.WriteFile(filepath.Join(dir, "empty.bin"), []byte{0x00, 0x01, 0x02}, 0o600)
 	require.NoError(t, err)
 
-	lines, err := g.FileDiff("", "empty.bin", false)
+	lines, err := g.FileDiff("", "empty.bin", false, 0)
 	require.NoError(t, err)
 	require.Len(t, lines, 1)
 	assert.Equal(t, "(binary file: 0 B → 3 B)", lines[0].Content)
@@ -967,4 +968,81 @@ func TestGit_UntrackedFiles(t *testing.T) {
 	assert.NotContains(t, files, "tracked.go")
 	assert.NotContains(t, files, "ignored.go")
 	// .gitignore itself is untracked since we just created it
+}
+
+func TestGitContextArg(t *testing.T) {
+	tests := []struct {
+		name         string
+		contextLines int
+		want         string
+	}{
+		{name: "zero requests full file", contextLines: 0, want: "-U1000000"},
+		{name: "five", contextLines: 5, want: "-U5"},
+		{name: "one", contextLines: 1, want: "-U1"},
+		{name: "just below sentinel", contextLines: 999999, want: "-U999999"},
+		{name: "exact sentinel returns full file", contextLines: 1000000, want: "-U1000000"},
+		{name: "above sentinel returns full file", contextLines: 1000001, want: "-U1000000"},
+		{name: "negative returns full file", contextLines: -1, want: "-U1000000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, gitContextArg(tt.contextLines))
+		})
+	}
+}
+
+func TestGit_FileDiff_SmallContext(t *testing.T) {
+	dir := setupTestRepo(t)
+	g := NewGit(dir)
+
+	// build a 20-line file, commit, then change line 10.
+	// with contextLines=2 the diff should contain exactly one removed line,
+	// one added line, and 4 context lines (2 above, 2 below).
+	var sb strings.Builder
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&sb, "line %d\n", i)
+	}
+	writeFile(t, dir, "big.txt", sb.String())
+	gitCmd(t, dir, "add", "big.txt")
+	gitCmd(t, dir, "commit", "-m", "initial")
+
+	sb.Reset()
+	for i := 1; i <= 20; i++ {
+		if i == 10 {
+			fmt.Fprintf(&sb, "line %d CHANGED\n", i)
+			continue
+		}
+		fmt.Fprintf(&sb, "line %d\n", i)
+	}
+	writeFile(t, dir, "big.txt", sb.String())
+
+	lines, err := g.FileDiff("", "big.txt", false, 2)
+	require.NoError(t, err)
+
+	var adds, removes, ctx int
+	for _, l := range lines {
+		switch l.ChangeType { //nolint:exhaustive // only counting relevant types
+		case ChangeAdd:
+			adds++
+		case ChangeRemove:
+			removes++
+		case ChangeContext:
+			ctx++
+		}
+	}
+	assert.Equal(t, 1, removes, "expected exactly 1 removed line at contextLines=2")
+	assert.Equal(t, 1, adds, "expected exactly 1 added line at contextLines=2")
+	assert.Equal(t, 4, ctx, "expected 4 context lines (2 above + 2 below) at contextLines=2")
+
+	// with contextLines=0 (full file) the diff should contain all 19 unchanged
+	// lines as context, proving the parameter is actually in effect.
+	fullLines, err := g.FileDiff("", "big.txt", false, 0)
+	require.NoError(t, err)
+	var fullCtx int
+	for _, l := range fullLines {
+		if l.ChangeType == ChangeContext {
+			fullCtx++
+		}
+	}
+	assert.Equal(t, 19, fullCtx, "expected 19 context lines with full-file context")
 }
