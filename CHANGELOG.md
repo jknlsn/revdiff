@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.22.0 - 2026-04-21
+
+### New Features
+
+- add compact diff mode with `--compact` flag and `C` keybinding #135 @umputun
+- add kitty ssh support #136 @kovstas
+
 ## v0.21.0 - 2026-04-20
 
 ### New Features
