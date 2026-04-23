@@ -156,7 +156,45 @@ func (j *Jj) FileDiff(ref, file string, _ bool, contextLines int) ([]DiffLine, e
 	// jj emits raw bytes for binary files instead of git's "Binary files … differ"
 	// marker. Detect and rewrite so parseUnifiedDiff produces the binary placeholder.
 	normalized := j.synthesizeBinaryDiff(out)
-	return parseUnifiedDiff(normalized)
+
+	// trailing divider only matters in compact mode; skip the probe in full-file mode.
+	total := 0
+	if contextLines > 0 && contextLines < fullContextSentinel {
+		total = j.totalOldLines(ref, file)
+	}
+	return parseUnifiedDiff(normalized, total)
+}
+
+// totalOldLines returns the line count of the pre-change version of file, used by
+// parseUnifiedDiff to emit a trailing divider. Returns 0 when the old-side file is
+// unavailable — the parser treats 0 as "unknown" and skips the trailing divider.
+//
+// Old-side resolution (mirrors diffRangeFlags):
+//   - ref empty              → "@-" (parent of the working-copy commit)
+//   - ref contains ".." or "..." → left operand (triple-dot checked first so A...B
+//     is not mis-split on the leading "..")
+//   - single ref             → use as-is
+//
+// For triple-dot ranges the left operand is an approximation of the true old side
+// (the jj revset ancestors(A) & ancestors(B)); accurate enough for the informational
+// trailing-divider count.
+func (j *Jj) totalOldLines(ref, file string) int {
+	oldRef := ref
+	if left, _, ok := strings.Cut(ref, "..."); ok {
+		oldRef = left
+	}
+	if left, _, ok := strings.Cut(oldRef, ".."); ok {
+		oldRef = left
+	}
+	oldRef = j.translateRef(oldRef)
+	if oldRef == "" {
+		oldRef = "@-"
+	}
+	out, err := j.runJj("file", "show", "-r", oldRef, "--", file)
+	if err != nil {
+		return 0
+	}
+	return countLines(out)
 }
 
 // jjContextArg returns the --context argument for jj diff given the caller's
