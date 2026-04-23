@@ -143,6 +143,20 @@ type Manager struct {
 	annotLst   annotListOverlay
 	themeSel   themeSelectOverlay
 	commitInfo commitInfoOverlay
+	// bounds is the popup rectangle on screen as of the last Compose call;
+	// used by HandleMouse to hit-test clicks and translate to popup-local coords.
+	bounds popupBounds
+}
+
+// popupBounds holds the screen rectangle of the last-composed popup.
+// zero-valued when no overlay has been rendered yet (kind == KindNone).
+type popupBounds struct {
+	x, y, w, h int
+}
+
+// contains reports whether (x, y) falls inside the popup rectangle.
+func (b popupBounds) contains(x, y int) bool {
+	return x >= b.x && x < b.x+b.w && y >= b.y && y < b.y+b.h
 }
 
 // NewManager creates a Manager with no active overlay.
@@ -157,6 +171,7 @@ func (m *Manager) Kind() Kind { return m.kind }
 // Close dismisses whatever overlay is active.
 func (m *Manager) Close() {
 	m.kind = KindNone
+	m.bounds = popupBounds{}
 }
 
 // OpenHelp activates the help overlay with the given spec.
@@ -216,6 +231,52 @@ func (m *Manager) HandleKey(msg tea.KeyMsg, action keymap.Action) Outcome {
 	return out
 }
 
+// HandleMouse routes a mouse event to the active overlay. wheel events drive
+// per-overlay scroll/cursor navigation; left-clicks inside the popup hit-test
+// an item row and can produce selection outcomes (jump/confirm); clicks
+// outside the popup and other buttons are consumed without side effects.
+// returns Outcome{Kind: OutcomeNone} when no overlay is active. mirrors
+// HandleKey: outcomes that imply dismissal auto-close.
+//
+// left-click coords are translated to popup-local coords before dispatch so
+// each overlay can reason about its own layout (border + padding + content
+// rows) without knowing screen geometry. clicks outside the popup bounds are
+// swallowed rather than dismissing the overlay — intentionally conservative
+// to avoid accidental closes.
+func (m *Manager) HandleMouse(msg tea.MouseMsg) Outcome {
+	if m.kind == KindNone {
+		return Outcome{}
+	}
+	if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress {
+		if !m.bounds.contains(msg.X, msg.Y) {
+			return Outcome{Kind: OutcomeNone}
+		}
+		msg.X -= m.bounds.x
+		msg.Y -= m.bounds.y
+	}
+	var out Outcome
+	switch m.kind {
+	case KindHelp:
+		out = m.help.handleMouse(msg)
+	case KindAnnotList:
+		out = m.annotLst.handleMouse(msg)
+	case KindThemeSelect:
+		out = m.themeSel.handleMouse(msg)
+	case KindCommitInfo:
+		out = m.commitInfo.handleMouse(msg)
+	default: // KindNone handled by the early return above
+		return Outcome{}
+	}
+
+	switch out.Kind {
+	case OutcomeClosed, OutcomeAnnotationChosen, OutcomeThemeConfirmed, OutcomeThemeCanceled:
+		m.Close()
+	case OutcomeNone, OutcomeThemePreview: // no state change
+	}
+
+	return out
+}
+
 // Compose renders the active overlay on top of base using centered compositing.
 // returns base unchanged when no overlay is active.
 func (m *Manager) Compose(base string, ctx RenderCtx) string {
@@ -236,7 +297,8 @@ func (m *Manager) Compose(base string, ctx RenderCtx) string {
 }
 
 // overlayCenter composites fg on top of bg, centered horizontally and vertically.
-// uses ANSI-aware string cutting to preserve styling in both layers.
+// uses ANSI-aware string cutting to preserve styling in both layers. records the
+// composed popup rectangle on the Manager so HandleMouse can hit-test clicks.
 func (m *Manager) overlayCenter(bg, fg string, width int) string {
 	bgLines := strings.Split(bg, "\n")
 	fgLines := strings.Split(fg, "\n")
@@ -247,6 +309,8 @@ func (m *Manager) overlayCenter(bg, fg string, width int) string {
 
 	startY := (bgHeight - fgHeight) / 2
 	startX := max((width-fgWidth)/2, 0)
+
+	m.bounds = popupBounds{x: startX, y: startY, w: fgWidth, h: fgHeight}
 
 	for i, fgLine := range fgLines {
 		bgIdx := startY + i
