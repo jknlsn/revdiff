@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.26.0 - 2026-04-25
+
+### New Features
+
+- vertical scrollbar thumb on diff pane right border #151 @umputun
+
+### Improvements
+
+- fix canonical/sitemap mismatch and tighten meta tags 0de948e
+- teach revdiff skill to recognize single-file review args 8016864
+
 ## v0.25.1 - 2026-04-24
 
 ### Improvements
