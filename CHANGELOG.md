@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.26.1 - 2026-04-26
+
+### New Features
+
+- vertical scrollbar thumb on navigation pane right border #152 @umputun
+
 ## v0.26.0 - 2026-04-25
 
 ### New Features
