@@ -24,9 +24,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -34,7 +33,7 @@
 <nav class="nav">
     <div class="nav-inner">
         <a href="/" class="nav-logo">
-            <img src="assets/icon.png" alt="revdiff" width="28" height="28">
+            <img src="assets/icon.png" alt="" width="28" height="28">
             <span>revdiff</span>
         </a>
         <div class="nav-links">
@@ -294,14 +293,22 @@ revdiff --only=/tmp/draft-comment.md</code></div>
             <figure class="zed-gallery-item">
                 <div class="terminal-frame">
                     <div class="terminal-dots"><span></span><span></span><span></span></div>
-                    <img src="assets/zed-gitdiff.png" alt="Reviewing a README diff in Zed's integrated terminal">
+                    <picture>
+                        <source srcset="assets/zed-gitdiff.avif" type="image/avif">
+                        <source srcset="assets/zed-gitdiff.webp" type="image/webp">
+                        <img src="assets/zed-gitdiff.png" alt="Reviewing a README diff in Zed's integrated terminal" width="1096" height="837" loading="lazy">
+                    </picture>
                 </div>
                 <figcaption>Reviewing uncommitted changes — revdiff runs as a Zed terminal tab with full syntax highlighting and annotation support</figcaption>
             </figure>
             <figure class="zed-gallery-item">
                 <div class="terminal-frame">
                     <div class="terminal-dots"><span></span><span></span><span></span></div>
-                    <img src="assets/zed-planreview.png" alt="Reviewing an implementation plan in revdiff inside Zed">
+                    <picture>
+                        <source srcset="assets/zed-planreview.avif" type="image/avif">
+                        <source srcset="assets/zed-planreview.webp" type="image/webp">
+                        <img src="assets/zed-planreview.png" alt="Reviewing an implementation plan in revdiff inside Zed" width="1117" height="767" loading="lazy">
+                    </picture>
                 </div>
                 <figcaption>Reviewing a plan file — file tree, line annotations, and structured output all work inside the editor tab</figcaption>
             </figure>
@@ -726,7 +733,7 @@ fi</code></div>
 <footer class="footer">
     <div class="section-inner footer-inner">
         <div class="footer-left">
-            <img src="assets/icon.png" alt="revdiff" width="24" height="24">
+            <img src="assets/icon.png" alt="" width="24" height="24">
             <span>revdiff by <a href="https://umputun.dev">umputun</a></span>
         </div>
         <div class="footer-links">

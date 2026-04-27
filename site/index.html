@@ -107,9 +107,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -117,7 +116,7 @@
 <nav class="nav">
     <div class="nav-inner">
         <a href="/" class="nav-logo">
-            <img src="assets/icon.png" alt="revdiff" width="28" height="28">
+            <img src="assets/icon.png" alt="" width="28" height="28">
             <span>revdiff</span>
         </a>
         <div class="nav-links">
@@ -132,6 +131,7 @@
     </div>
 </nav>
 
+<main>
 <header class="hero">
     <div class="hero-content">
         <div class="hero-badge">v0.26.1 <span class="hero-badge-sep">/</span> open source</div>
@@ -151,13 +151,41 @@
                 <span></span><span></span><span></span>
             </div>
             <div class="gallery-slides">
-                <img src="assets/screenshot.png" alt="revdiff TUI — diff view with syntax highlighting">
-                <img src="assets/screenshot-2.png" alt="revdiff TUI — help overlay with keybindings" loading="lazy">
-                <img src="assets/screenshot-3.png" alt="revdiff TUI — theme selector" loading="lazy">
-                <img src="assets/screenshot-4.png" alt="revdiff TUI — code view with annotations" loading="lazy">
-                <img src="assets/screenshot-5.png" alt="revdiff TUI — theme picker with live preview" loading="lazy">
-                <img src="assets/screenshot-6.png" alt="revdiff TUI — document browsing with markdown TOC" loading="lazy">
-                <img src="assets/screenshot-7.png" alt="revdiff TUI — code review with annotations" loading="lazy">
+                <picture>
+                    <source srcset="assets/screenshot.avif" type="image/avif">
+                    <source srcset="assets/screenshot.webp" type="image/webp">
+                    <img src="assets/screenshot.png" alt="revdiff TUI — diff view with syntax highlighting" width="1200" height="727" fetchpriority="high">
+                </picture>
+                <picture>
+                    <source srcset="assets/screenshot-2.avif" type="image/avif">
+                    <source srcset="assets/screenshot-2.webp" type="image/webp">
+                    <img src="assets/screenshot-2.png" alt="revdiff TUI — help overlay with keybindings" width="1200" height="727" loading="lazy">
+                </picture>
+                <picture>
+                    <source srcset="assets/screenshot-3.avif" type="image/avif">
+                    <source srcset="assets/screenshot-3.webp" type="image/webp">
+                    <img src="assets/screenshot-3.png" alt="revdiff TUI — theme selector" width="1200" height="727" loading="lazy">
+                </picture>
+                <picture>
+                    <source srcset="assets/screenshot-4.avif" type="image/avif">
+                    <source srcset="assets/screenshot-4.webp" type="image/webp">
+                    <img src="assets/screenshot-4.png" alt="revdiff TUI — code view with annotations" width="1200" height="727" loading="lazy">
+                </picture>
+                <picture>
+                    <source srcset="assets/screenshot-5.avif" type="image/avif">
+                    <source srcset="assets/screenshot-5.webp" type="image/webp">
+                    <img src="assets/screenshot-5.png" alt="revdiff TUI — theme picker with live preview" width="1200" height="727" loading="lazy">
+                </picture>
+                <picture>
+                    <source srcset="assets/screenshot-6.avif" type="image/avif">
+                    <source srcset="assets/screenshot-6.webp" type="image/webp">
+                    <img src="assets/screenshot-6.png" alt="revdiff TUI — document browsing with markdown TOC" width="1200" height="727" loading="lazy">
+                </picture>
+                <picture>
+                    <source srcset="assets/screenshot-7.avif" type="image/avif">
+                    <source srcset="assets/screenshot-7.webp" type="image/webp">
+                    <img src="assets/screenshot-7.png" alt="revdiff TUI — code review with annotations" width="1200" height="727" loading="lazy">
+                </picture>
             </div>
         </div>
     </div>
@@ -468,11 +496,12 @@ refactor this hunk to reduce nesting
 don't remove this validation</code></div>
     </div>
 </section>
+</main>
 
 <footer class="footer">
     <div class="section-inner footer-inner">
         <div class="footer-left">
-            <img src="assets/icon.png" alt="revdiff" width="24" height="24">
+            <img src="assets/icon.png" alt="" width="24" height="24">
             <span>revdiff by <a href="https://umputun.dev">umputun</a></span>
         </div>
         <div class="footer-links">
