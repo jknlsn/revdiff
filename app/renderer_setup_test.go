@@ -267,6 +267,7 @@ func TestCompactApplicable(t *testing.T) {
 	fallback := diff.NewFallbackRenderer(g, []string{"file.md"}, dir)
 	incl := diff.NewIncludeFilter(g, []string{"src"})
 	excl := diff.NewExcludeFilter(g, []string{"vendor"})
+	cr := diff.NewCompareReader(dir+"/old.md", dir+"/new.md")
 
 	tests := []struct {
 		name     string
@@ -283,6 +284,9 @@ func TestCompactApplicable(t *testing.T) {
 		{name: "only in VCS repo (Fallback wrapping Git)", opts: options{Only: []string{"file.md"}}, renderer: fallback, want: true},
 		{name: "include wrapping git", opts: options{Include: []string{"src"}}, renderer: incl, want: true},
 		{name: "exclude wrapping git", opts: options{Exclude: []string{"vendor"}}, renderer: excl, want: true},
+		// compare-mode renderer (not *FileReader) qualifies; pins that the
+		// FileReader bypass does not over-fire on CompareReader.
+		{name: "compare reader (not FileReader)", opts: options{CompareOld: dir + "/old.md", CompareNew: dir + "/new.md"}, renderer: cr, want: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

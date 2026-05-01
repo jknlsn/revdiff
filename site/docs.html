@@ -199,6 +199,9 @@ revdiff --only=/tmp/plan.md
 <span class="code-comment"># review a file with no git changes (context-only)</span>
 revdiff --only=docs/notes.txt
 
+<span class="code-comment"># diff two arbitrary files (no VCS repo needed)</span>
+revdiff --compare-old=/tmp/plan-old.md --compare-new=docs/plans/plan.md
+
 <span class="code-comment"># review piped text as a scratch buffer</span>
 printf '# Plan\n\nBody\n' | revdiff --stdin --stdin-name plan.md
 
@@ -226,6 +229,12 @@ revdiff --all-files --exclude vendor --exclude mocks</code></div>
             <li><strong>Inside a git repo</strong> &mdash; files not in the diff are read from disk alongside changed files</li>
             <li><strong>Outside a git repo</strong> &mdash; <code>--only</code> is required; files are read directly from disk</li>
         </ul>
+
+        <h2 id="two-file-diff">Two-file diff</h2>
+        <p>Use <code>--compare-old=&lt;path&gt;</code> together with <code>--compare-new=&lt;path&gt;</code> to diff two arbitrary files on disk using <code>git diff --no-index</code>. No VCS repository is required &mdash; this works anywhere <code>git</code> is installed.</p>
+        <div class="code-block"><code>revdiff --compare-old=/tmp/plan-old.md --compare-new=docs/plans/plan.md
+revdiff --compare-old=a.txt --compare-new=b.txt</code></div>
+        <p><code>--compare-old</code> and <code>--compare-new</code> must be used together and are mutually exclusive with refs, <code>--staged</code>, <code>--only</code>, <code>--all-files</code>, <code>--stdin</code>, <code>--include</code>, <code>--exclude</code>, and <code>--annotations</code>. All standard features work: word-diff, compact mode, syntax highlighting, scrollbar, and inline annotations.</p>
 
         <h2 id="scratch-buffer">Scratch-buffer review</h2>
         <p>Use <code>--stdin</code> to review arbitrary piped or redirected text as a single synthetic file. All lines are treated as context, so the normal single-file review flow still works: annotations, file-level notes, search, wrap, collapsed mode, and structured output.</p>
@@ -374,6 +383,8 @@ revdiff --dump-config > ~/.config/revdiff/config</code></div>
                 <tr><td><code>--init-all-themes</code></td><td>Write all gallery themes (bundled + community) to themes dir and exit</td><td></td></tr>
                 <tr><td><code>--install-theme</code></td><td>Install theme(s) from gallery or local file (repeatable)</td><td></td></tr>
                 <tr><td><code>-A, --all-files</code></td><td>Browse all tracked files (git and jj only)</td><td><code>false</code></td></tr>
+                <tr><td><code>--compare-old</code></td><td>Compare mode: old file path (use with <code>--compare-new</code>; uses <code>git diff --no-index</code>, no VCS repo needed)</td><td></td></tr>
+                <tr><td><code>--compare-new</code></td><td>Compare mode: new file path (use with <code>--compare-old</code>)</td><td></td></tr>
                 <tr><td><code>--stdin</code></td><td>Review stdin as a scratch buffer</td><td><code>false</code></td></tr>
                 <tr><td><code>--stdin-name</code></td><td>Synthetic file name for stdin content</td><td><code>scratch-buffer</code></td></tr>
                 <tr><td><code>--description</code></td><td>Prose context shown in the info popup (markdown)</td><td></td></tr>
