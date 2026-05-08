@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1 - 2026-05-08
+
+### Improvements
+
+- decouple mouse wheel from diff cursor #173 @umputun
+
 ## v1.1.0 - 2026-05-07
 
 ### New Features
