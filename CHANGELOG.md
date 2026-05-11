@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.2.0 - 2026-05-11
+
+### New Features
+
+- add --untracked flag to show untracked files in the tree #178 @umputun
+
+### Bug Fixes
+
+- tree/TOC wheel scrolls one entry per notch (not three) #181 @umputun
+- coalesce diff-pane wheel events to unblock reverse scroll (#179) #180 @umputun
+
 ## v1.1.1 - 2026-05-08
 
 ### Improvements
