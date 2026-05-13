@@ -1164,7 +1164,6 @@ func TestModel_AnnotationInputWidthUsesMarkerWidth(t *testing.T) {
 			m.layout.width = 120
 			m.layout.treeWidth = 30
 			m.layout.treeHidden = false
-			m.cfg.annotationMarker = tt.marker
 			m.cfg.annotPrefix = tt.marker + " "
 			m.cfg.annotFilePrefix = tt.marker + " file: "
 

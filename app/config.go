@@ -158,7 +158,7 @@ func parseArgs(args []string) (options, error) {
 	}
 
 	if strings.ContainsAny(opts.AnnotationMarker, "\n\r\t") {
-		return options{}, errors.New("--annotation-marker cannot contain newlines or tabs")
+		return options{}, errors.New("--annotation-marker cannot contain control characters")
 	}
 
 	if opts.Description != "" && opts.DescriptionFile != "" {

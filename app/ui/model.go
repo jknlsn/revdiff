@@ -265,7 +265,6 @@ type modelConfigState struct {
 	treeWidthRatio   int      // 1-10 units for file tree panel
 	tabSpaces        string   // spaces to replace tabs with
 	wrapIndent       int      // extra indent (in columns) for wrap continuation rows; 0 disables
-	annotationMarker string   // prefix shown before annotation lines
 	annotPrefix      string   // cached: marker + " "
 	annotFilePrefix  string   // cached: marker + " file: "
 }
@@ -754,7 +753,6 @@ func NewModel(cfg ModelConfig) (Model, error) {
 			treeWidthRatio:   cfg.TreeWidthRatio,
 			tabSpaces:        strings.Repeat(" ", cfg.TabWidth),
 			wrapIndent:       max(0, cfg.WrapIndent),
-			annotationMarker: cfg.AnnotationMarker,
 			annotPrefix:      cfg.AnnotationMarker + " ",
 			annotFilePrefix:  cfg.AnnotationMarker + " file: ",
 		},

@@ -457,19 +457,19 @@ func TestParseArgs_AnnotationMarker(t *testing.T) {
 	t.Run("rejects newline", func(t *testing.T) {
 		_, err := parseArgs(append(noConfigArgs(t), "--annotation-marker=a\nb"))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot contain newlines or tabs")
+		assert.Contains(t, err.Error(), "cannot contain control characters")
 	})
 
 	t.Run("rejects tab", func(t *testing.T) {
 		_, err := parseArgs(append(noConfigArgs(t), "--annotation-marker=a\tb"))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot contain newlines or tabs")
+		assert.Contains(t, err.Error(), "cannot contain control characters")
 	})
 
 	t.Run("rejects carriage return", func(t *testing.T) {
 		_, err := parseArgs(append(noConfigArgs(t), "--annotation-marker=a\rb"))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot contain newlines or tabs")
+		assert.Contains(t, err.Error(), "cannot contain control characters")
 	})
 }
 
